@@ -2,15 +2,15 @@ from google import genai
 from agent.tools import WebSearchTool, EntityExtractorTool, ReportFormatterTool
 import os
 import json
+import time
 from typing import Dict
 from dotenv import load_dotenv
-
 
 load_dotenv()        
 
 
 class ResearchAgent:
-    """Main research agent using Gemini API"""
+    """Main research agent using Gemini API with automatic model fallback & retries"""
     
     def __init__(self):
         """Initialize the agent"""
@@ -29,6 +29,31 @@ class ResearchAgent:
             'description': description
         })
         print(f"[Step {step_num}] {description}")
+
+    def _call_gemini_with_fallback(self, prompt: str) -> str:
+        """Call Gemini API with model fallback and retries for high availability"""
+        models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        last_exception = None
+
+        for model_name in models_to_try:
+            for attempt in range(3):
+                try:
+                    response = self.client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    last_exception = e
+                    err_str = str(e)
+                    if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
+                        print(f"Model {model_name} (attempt {attempt+1}) temporarily busy. Retrying...")
+                        time.sleep(2)
+                    else:
+                        break  # Try next fallback model if error is persistent
+
+        raise RuntimeError(f"All Gemini model attempts failed. Details: {last_exception}")
     
     def research(self, topic: str, research_id: str = None) -> Dict:
         """
@@ -68,11 +93,8 @@ Provide:
 Be concise and factual.
 """
             
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=analysis_prompt
-            )
-            analysis = response.text            
+            analysis = self._call_gemini_with_fallback(analysis_prompt)
+            
             # Step 3: Extract Entities
             self.log_step(3, "Identifying key entities")
             entities = EntityExtractorTool.extract_entities(analysis)
@@ -106,11 +128,8 @@ Provide:
 Be clear and professional.
 """
             
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=synthesis_prompt
-            )
-            synthesis = response.text            
+            synthesis = self._call_gemini_with_fallback(synthesis_prompt)
+
             # Step 6: Format Report
             self.log_step(6, "Formatting final report")
             
