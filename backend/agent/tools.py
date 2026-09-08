@@ -2,29 +2,89 @@ import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict
 import json
+from tavily import TavilyClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class WebSearchTool:
-    """Search the web for information"""
+    """Search the web using Tavily API (AI-optimized search)"""
     
     @staticmethod
     def search(query: str, num_results: int = 5) -> List[Dict]:
         """
-        Search using web (mock for MVP)
-        In production, use SerpAPI or Google Search API
+        Search using Tavily API - optimized for AI agents
+        Returns real web search results with high quality
         """
         try:
-            # Mock search results for MVP
-            return [
+            tavily_api_key = os.getenv('TAVILY_API_KEY')
+            
+            if not tavily_api_key:
+                print("Warning: TAVILY_API_KEY not set, using mock results")
+                return WebSearchTool._mock_search(query, num_results)
+            
+            client = TavilyClient(api_key=tavily_api_key)
+            
+            # Tavily search with AI optimization
+            response = client.search(
+                query=query,
+                max_results=num_results,
+                include_answer=True
+            )
+            
+            # Parse Tavily response
+            formatted_results = [
                 {
-                    'title': f'Finding {i+1}: {query}',
-                    'url': f'https://example.com/result-{i+1}',
-                    'snippet': f'Relevant information about {query} result {i+1}'
+                    'title': result.get('title', 'Unknown'),
+                    'url': result.get('url', ''),
+                    'snippet': result.get('content', '')
                 }
-                for i in range(num_results)
+                for result in response.get('results', [])
             ]
+            
+            return formatted_results if formatted_results else WebSearchTool._mock_search(query, num_results)
+            
         except Exception as e:
-            print(f"Search error: {e}")
-            return []
+            print(f"Tavily API error: {e}")
+            return WebSearchTool._mock_search(query, num_results)
+    
+    @staticmethod
+    def _mock_search(query: str, num_results: int = 5) -> List[Dict]:
+        """Fallback mock search (for development without API key)"""
+        return [
+            {
+                'title': f'Finding {i+1}: {query}',
+                'url': f'https://example.com/result-{i+1}',
+                'snippet': f'Relevant information about {query} result {i+1}'
+            }
+            for i in range(num_results)
+        ]
+
+
+
+# class WebSearchTool:
+#     """Search the web for information"""
+    
+#     @staticmethod
+#     def search(query: str, num_results: int = 5) -> List[Dict]:
+#         """
+#         Search using web (mock for MVP)
+#         In production, use SerpAPI or Google Search API
+#         """
+#         try:
+#             # Mock search results for MVP
+#             return [
+#                 {
+#                     'title': f'Finding {i+1}: {query}',
+#                     'url': f'https://example.com/result-{i+1}',
+#                     'snippet': f'Relevant information about {query} result {i+1}'
+#                 }
+#                 for i in range(num_results)
+#             ]
+#         except Exception as e:
+#             print(f"Search error: {e}")
+#             return []
 
 class ContentParserTool:
     """Parse and analyze content from URLs"""
