@@ -61,31 +61,6 @@ class WebSearchTool:
             for i in range(num_results)
         ]
 
-
-
-# class WebSearchTool:
-#     """Search the web for information"""
-    
-#     @staticmethod
-#     def search(query: str, num_results: int = 5) -> List[Dict]:
-#         """
-#         Search using web (mock for MVP)
-#         In production, use SerpAPI or Google Search API
-#         """
-#         try:
-#             # Mock search results for MVP
-#             return [
-#                 {
-#                     'title': f'Finding {i+1}: {query}',
-#                     'url': f'https://example.com/result-{i+1}',
-#                     'snippet': f'Relevant information about {query} result {i+1}'
-#                 }
-#                 for i in range(num_results)
-#             ]
-#         except Exception as e:
-#             print(f"Search error: {e}")
-#             return []
-
 class ContentParserTool:
     """Parse and analyze content from URLs"""
     
@@ -133,19 +108,21 @@ class EntityExtractorTool:
             'concepts': []
         }
         
-        # Simple keyword matching
         keywords = {
             'quantum': 'Quantum Computing',
             'ai': 'Artificial Intelligence',
             'machine learning': 'Machine Learning',
             'blockchain': 'Blockchain',
-            'crypto': 'Cryptocurrency'
+            'crypto': 'Cryptocurrency',
+            'cloud': 'Cloud Computing',
+            'web3': 'Web3'
         }
         
         text_lower = text.lower()
         for keyword, entity in keywords.items():
             if keyword in text_lower:
-                common_entities['technologies'].append(entity)
+                if entity not in common_entities['technologies']:
+                    common_entities['technologies'].append(entity)
         
         return common_entities
 
@@ -155,7 +132,6 @@ class ReportFormatterTool:
     @staticmethod
     def format_report(findings: Dict, sources: List[Dict]) -> str:
         """Format findings as markdown"""
-        
         report = f"# Research Report: {findings.get('topic', 'Research')}\n\n"
         report += f"## Summary\n{findings.get('summary', 'No summary')}\n\n"
         
@@ -164,11 +140,48 @@ class ReportFormatterTool:
             for i, finding in enumerate(findings['key_findings'], 1):
                 report += f"{i}. {finding}\n"
         
-        report += "\n## Sources\n"
-        for i, source in enumerate(sources, 1):
-            report += f"{i}. [{source.get('title', 'Source')}]({source.get('url', '#')})\n"
+        if sources:
+            report += "## Sources\n"
+            for i, source in enumerate(sources, 1):
+                report += f"{i}. [{source.get('title', 'Source')}]({source.get('url', '#')})\n"
         
         return report
+
+# LangChain helper functions
+def web_search(query: str) -> str:
+    """LangChain tool function for web searching"""
+    results = WebSearchTool.search(query, num_results=5)
+    if not results:
+        return f"No results found for query: '{query}'"
+    
+    formatted_text = f"Web search results for '{query}':\n\n"
+    for i, res in enumerate(results, 1):
+        formatted_text += f"{i}. Title: {res.get('title')}\n"
+        formatted_text += f"   URL: {res.get('url')}\n"
+        formatted_text += f"   Snippet: {res.get('snippet', '')[:300]}...\n\n"
+    return formatted_text
+
+def extract_entities(text: str) -> str:
+    """LangChain tool function for entity extraction"""
+    entities = EntityExtractorTool.extract_entities(text)
+    output = "Entities found:\n"
+    for category, items in entities.items():
+        if items:
+            output += f"\n{category.capitalize()}:\n"
+            for item in items:
+                output += f"  - {item}\n"
+    return output if any(entities.values()) else "No specific entities identified."
+
+def parse_url(url: str) -> str:
+    """LangChain tool function for web page parsing"""
+    parsed = ContentParserTool.parse(url)
+    return f"Title: {parsed.get('title')}\n\nContent Snippet: {parsed.get('content')}"
+
+def format_report(findings: str, sources: List[Dict] = None) -> str:
+    """LangChain tool function for report formatting"""
+    if sources is None:
+        sources = []
+    return ReportFormatterTool.format_report({'topic': 'Research Report', 'summary': findings}, sources)
 
 TOOLS = {
     'web_search': WebSearchTool.search,
